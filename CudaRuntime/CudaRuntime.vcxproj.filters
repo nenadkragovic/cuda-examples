@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Vectors">
+      <UniqueIdentifier>{61795892-79f6-44c5-8e38-9b7d98c5557b}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CudaVector.cuh">
+      <Filter>Vectors</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
