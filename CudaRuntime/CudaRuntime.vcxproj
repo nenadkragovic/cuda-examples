@@ -80,7 +80,10 @@
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CudaMatrix.cuh" />
     <ClInclude Include="CudaVector.cuh" />
+    <ClInclude Include="HelpMethods.h" />
+    <ClInclude Include="Lab1.cuh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

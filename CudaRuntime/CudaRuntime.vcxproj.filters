@@ -12,5 +12,14 @@
     <ClInclude Include="CudaVector.cuh">
       <Filter>Vectors</Filter>
     </ClInclude>
+    <ClInclude Include="CudaMatrix.cuh">
+      <Filter>Vectors</Filter>
+    </ClInclude>
+    <ClInclude Include="Lab1.cuh">
+      <Filter>Vectors</Filter>
+    </ClInclude>
+    <ClInclude Include="HelpMethods.h">
+      <Filter>Vectors</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

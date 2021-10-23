@@ -38,6 +38,13 @@ __global__ void add(float* a, float* b, float* c)
 	c[index] = a[index] + b[index];
 }
 
+__global__ void mul(float* a, float* b, float* c)
+{
+	int index = threadIdx.x + blockIdx.x * blockDim.x;
+
+	c[index] = a[index] * b[index];
+}
+
 #pragma endregion
 
 class CudaVector
@@ -92,7 +99,7 @@ public:
 		cudaMalloc((void**)&dev_out_sum, blockSize * sizeof(float));
 		cudaMemcpy(dev_vector, this->h_vector, this->h_size * sizeof(float), cudaMemcpyHostToDevice);
 
-		compute << <1, blockSize >> > (el, dev_vector, dev_out_sum, numberOfThreads);
+		compute <<<1, blockSize >>> (el, dev_vector, dev_out_sum, numberOfThreads);
 		cudaThreadSynchronize();
 
 		cudaMemcpy(host_out_sum, dev_out_sum, blockSize * sizeof(float), cudaMemcpyDeviceToHost);
@@ -123,6 +130,28 @@ public:
 		cudaMemcpy(dev_vector2, vector2->h_vector, vector2->h_size * sizeof(float), cudaMemcpyHostToDevice);
 
 		add<<<1,larger>>>(dev_vector1, dev_vector2, dev_res_vector);
+
+		cudaMemcpy(this->h_vector, dev_res_vector, larger * sizeof(float), cudaMemcpyDeviceToHost);
+	}
+
+	__host__ void Mul(CudaVector* vector1, CudaVector* vector2)
+	{
+		float* dev_vector1;
+		float* dev_vector2;
+		float* dev_res_vector;
+
+		int larger = vector1->h_size > vector2->h_size ? vector1->h_size : vector2->h_size;
+		this->h_vector = new float[larger];
+		this->h_size = larger;
+
+		cudaMalloc((void**)&dev_vector1, vector1->h_size * sizeof(float));
+		cudaMalloc((void**)&dev_vector2, vector2->h_size * sizeof(float));
+		cudaMalloc((void**)&dev_res_vector, larger * sizeof(float));
+
+		cudaMemcpy(dev_vector1, vector1->h_vector, vector1->h_size * sizeof(float), cudaMemcpyHostToDevice);
+		cudaMemcpy(dev_vector2, vector2->h_vector, vector2->h_size * sizeof(float), cudaMemcpyHostToDevice);
+
+		mul << <1, larger >> > (dev_vector1, dev_vector2, dev_res_vector);
 
 		cudaMemcpy(this->h_vector, dev_res_vector, larger * sizeof(float), cudaMemcpyDeviceToHost);
 	}
