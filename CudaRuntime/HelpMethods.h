@@ -15,7 +15,7 @@ public:
 		int* arr = new int[size];
 
 		for (int i = 0; i < size; i++)
-			arr[i] = rand() % range;
+			arr[i] = rand() % range + 1;
 		return arr;
 	}
 
@@ -88,6 +88,8 @@ public:
 
 			for (int j = 0; j < w; j++)
 			{
+				if (matrix[i][j] < 0)
+					res.pop_back();
 				res += std::to_string(matrix[i][j]);
 
 				if (j < w - 1)
@@ -105,13 +107,16 @@ public:
 
 	static string PrintArrayAsMatrix(int* arr, int w, int h)
 	{
-		string res;
+		string res = "";
 		for (int i = 0; i < h; i++)
 		{
 			res += "| ";
 
 			for (int j = 0; j < w; j++)
 			{
+				if (arr[i * w + j] < 0)
+					res.pop_back();
+
 				res += std::to_string(arr[i * w + j]);
 
 				if (j < w - 1)

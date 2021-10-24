@@ -2,49 +2,198 @@
 #include <iostream>
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include "HelpMethods.h"
+
+#define MUL_USING_TILES true
+#define TILE_WIDTH 2
 
 using namespace std;
 
 #pragma region Device and Global Methods
 
+__global__ void add_m(int * a, int * b, int *c, int width)
+{
+    int i = threadIdx.x * blockDim.x * blockIdx.x;
+    int j = threadIdx.y * blockDim.y * blockIdx.y;
+    int index = i * width + j;
+
+    c[index] = a[index] + b[index];
+}
+
+__global__ void sub_m(int* a, int* b, int* c, int width)
+{
+    int i = threadIdx.x * blockDim.x * blockIdx.x;
+    int j = threadIdx.y * blockDim.y * blockIdx.y;
+    int index = i * width + j;
+
+    c[index] = a[index] - b[index];
+}
+
+__global__ void mul_m(int* a, int* b, int* c, int width)
+{
+    int sum = 0;
+    for (int k = 0; k < width; k++)
+    {
+        int a_v = a[threadIdx.x * width + k];
+        int b_v = b[k * width + threadIdx.y];
+        sum += (a_v * b_v);
+    }
+
+    c[threadIdx.x * width + threadIdx.y] = sum;
+}
+
+__global__ void mul_m_tiles(int* a, int* b, int* c, int width)
+{
+    int row = blockIdx.y * TILE_WIDTH + threadIdx.y;
+    int col = blockIdx.x * TILE_WIDTH + threadIdx.x;
+
+    int sum = 0;
+    for (int k = 0; k < width; k++)
+    {
+        int a_v = a[row * width + k];
+        int b_v = a[k * width + col];
+        sum += (a_v * b_v);
+    }
+
+    c[row * width + col] = sum;
+}
+
+__global__ void transpose_m(int* a, int* res, int width)
+{
+    int i = threadIdx.x * blockDim.x * blockIdx.x;
+    int j = threadIdx.y * blockDim.y * blockIdx.y;
+    int index = i * width + j;
+
+    res[j * width + i] = a[i * width + j];
+}
 
 #pragma endregion
 
-template <class T> class Matrix
+class CudaMatrix
 {
 #pragma Fields, constructor and basic methods
-	T** matrix;
-	int width, height;
+    int* data;
+    int width, height;
+private:
+    /// <summary>
+    /// Generic method used to execute various cuda kernels
+    /// </summary>
+    /// <param name="b_matrix">Second operand</param>
+    /// <param name="kernel">kernel to execute. Must have strict params (int*, int*, int*, int matrix_width)</param>
+    /// <param name="blockDim">Block dimension. Default is one</param>
+    /// <param name="threadDim">Thread dimension. Default is width, height.</param>
+    /// <returns></returns>
+    CudaMatrix ExecuteCudaKernel(
+        CudaMatrix b_matrix,
+        void (*kernel)(int* a, int* b, int* c, int width),
+        dim3 threadDim = 0,
+        dim3 blockDim = 1)
+    {
+        if (threadDim.x == 0)
+            threadDim = dim3(this->height, this->width);
+
+        CudaMatrix res(this->width, this->height);
+
+        int* dev_a, * dev_b, * dev_c;
+
+        int array_size = this->width * this->height * sizeof(int);
+
+        cudaMalloc((void**)&dev_a, array_size);
+        cudaMalloc((void**)&dev_b, array_size);
+        cudaMalloc((void**)&dev_c, array_size);
+
+        cudaMemcpy(dev_a, this->data, array_size, cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_b, b_matrix.data, array_size, cudaMemcpyHostToDevice);
+
+
+        kernel<< <blockDim, threadDim >> > (dev_a, dev_b, dev_c, this->width);
+        cudaThreadSynchronize();
+
+        cudaMemcpy(res.data, dev_c, array_size, cudaMemcpyDeviceToHost);
+
+        cudaFree(dev_a);
+        cudaFree(dev_b);
+        cudaFree(dev_c);
+
+        return res;
+    }
+
 public:
-	Matrix(int w, int h)
-	{
-		this->width = w;
-		this->height = h;
-		this->matrix = new T*[h];
-		for (int i = 0; i < h; i++)
-			this->matrix[i] = new T[w];
-	}
+    CudaMatrix(int w, int h = 0)
+    {
+        if (h == 0) h = w;
 
-	void PopulateMatrix()
-	{
-		for (int i = 0; i < this->height; i++)
-			for (int j = 0; j < this->width; j++)
-				this->matrix[j][i] = rand() % 10;
-	}
+        this->width = w;
+        this->height = h;
+        this->data = new int[h*w];
+    }
 
-	void Print()
-	{
-		for (int i = 0; i < this->height; i++)
-		{
-			cout << "| ";
-			for (int j = 0; j < this->width; j++)
-			{
-				cout << this->matrix[j][i];
-				if (j < this->width - 1)
-					cout << ", ";
-			}
-			cout << " |" << endl;
-		}
-	}
+    void PopulateMatrix(int precision = 4)
+    {
+        this->data = StructHelperMethods::GenerateArray(this->width * this->height, precision);
+    }
 
+    void Print()
+    {
+        cout << StructHelperMethods::PrintArrayAsMatrix(this->data, this->width, this->height);
+    }
+
+    CudaMatrix operator+(const CudaMatrix& operand)
+    {
+        if (this->width != operand.width || this->height != operand.height)
+            throw "Matrix must have same dimensions!";
+
+        return ExecuteCudaKernel(operand, add_m);
+    }
+
+    CudaMatrix operator-(const CudaMatrix& operand)
+    {
+        if (this->width != operand.width || this->height != operand.height)
+            throw "Matrix must have same dimensions!";
+
+        return ExecuteCudaKernel(operand, sub_m);
+    }
+
+    CudaMatrix operator*(const CudaMatrix& operand)
+    {
+        if (this->width != operand.width || this->height != operand.height)
+            throw "Matrix must have same dimensions!";
+
+        if (MUL_USING_TILES)
+        {
+            return ExecuteCudaKernel(
+                operand, mul_m_tiles,
+                dim3(TILE_WIDTH, TILE_WIDTH),
+                dim3(this->width / TILE_WIDTH, this->width / TILE_WIDTH));
+        }
+
+        return ExecuteCudaKernel(operand, mul_m);
+    }
+
+    /// <summary>
+    /// Transpose
+    /// </summary>
+    /// <param name="add"></param>
+    /// <returns></returns>
+    void Transpose()
+    {
+        if (this->width != this->height)
+            throw "This matrix cant be transposed!";
+
+        int* dev_a, * dev_b;
+
+        int array_size = this->width * this->height * sizeof(int);
+
+        cudaMalloc((void**)&dev_a, array_size);
+        cudaMalloc((void**)&dev_b, array_size);
+
+        cudaMemcpy(dev_a, this->data, array_size, cudaMemcpyHostToDevice);
+
+
+        transpose_m << <1, dim3(this->width, this->height) >> > (dev_a, dev_b, this->width);
+
+        cudaThreadSynchronize();
+
+        cudaMemcpy(this->data, dev_b, array_size, cudaMemcpyDeviceToHost);
+    }
 };

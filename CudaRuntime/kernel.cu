@@ -24,14 +24,36 @@ int main()
 	v4->Print();
 	cout << "Number od 2 in array: " << v4->FindNumberOfOccurrences(2) << endl;*/
 
-	/*Matrix<int> m(10, 10);
-	m.PopulateMatrix();
-	m.Print();*/
 
-	Lab1* l1 = new Lab1();
+	//Lab1* l1 = new Lab1();
 
 	// l1->Prvi();
-	l1->Drugi();
+	//l1->Drugi();
+
+
+	CudaMatrix a(3);
+	a.PopulateMatrix();
+	cout << "A: " << endl;
+	a.Print();
+
+	CudaMatrix b(3);
+	b.PopulateMatrix();
+	cout << "B: " << endl;
+	b.Print();
+
+
+	cout << "A+B: " << endl;
+	(a + b).Print();
+
+	cout << "A-B: " << endl;
+	(a - b).Print();
+
+	cout << "A*B: " << endl;
+	(a * b).Print();
+
+	cout << "A transposed: " << endl;
+	a.Transpose();
+	a.Print();
 
 	return 0;
 }
