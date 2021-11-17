@@ -1,11 +1,13 @@
 #pragma once
 #include <iostream>
+#include <device_functions.h>
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "HelpMethods.h"
 
 #define MUL_USING_TILES true
 #define TILE_WIDTH 2
+#define USE_SHARED_MEMORY true
 
 using namespace std;
 
@@ -58,11 +60,38 @@ __global__ void mul_m_tiles(int* a, int* b, int* c, int width)
     c[row * width + col] = sum;
 }
 
+__global__ void mul_m_shared(int* a, int* b, int* c, int width)
+{
+    __shared__ int A[TILE_WIDTH][TILE_WIDTH];
+    __shared__ int B[TILE_WIDTH][TILE_WIDTH];
+
+    int bx = blockIdx.x, by = blockIdx.y;
+    int tx = threadIdx.x, ty = threadIdx.y;
+
+    int row = by * TILE_WIDTH + ty;
+    int col = bx * TILE_WIDTH + tx;
+
+    float pValue = 0;
+
+    for (int m=0; m < width / TILE_WIDTH; m++)
+    {
+        A[ty][tx] = a[row * width + m * TILE_WIDTH + tx];
+        B[ty][tx] = b[col + (m * TILE_WIDTH + ty) * width];
+
+        __syncthreads();
+
+        for (int k = 0; k < TILE_WIDTH; k++)
+            pValue += A[ty][k] * B[k][tx];
+        __syncthreads();
+    }
+
+    c[row * width + col] = pValue;
+}
+
 __global__ void transpose_m(int* a, int* res, int width)
 {
     int i = threadIdx.x * blockDim.x * blockIdx.x;
     int j = threadIdx.y * blockDim.y * blockIdx.y;
-    int index = i * width + j;
 
     res[j * width + i] = a[i * width + j];
 }
@@ -159,7 +188,14 @@ public:
         if (this->width != operand.width || this->height != operand.height)
             throw "Matrix must have same dimensions!";
 
-        if (MUL_USING_TILES)
+        if (USE_SHARED_MEMORY)
+        {
+            return ExecuteCudaKernel(
+                operand, mul_m_shared,
+                dim3(TILE_WIDTH, TILE_WIDTH),
+                dim3(this->width / TILE_WIDTH, this->width / TILE_WIDTH));
+        }
+        else if (MUL_USING_TILES)
         {
             return ExecuteCudaKernel(
                 operand, mul_m_tiles,
